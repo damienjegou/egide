@@ -1,0 +1,15 @@
+# leinrenkobreakout
+
+Autonomous trading bot using renko bricks and channel breakouts strategy
+
+## Usage
+
+Add jar file to local repo (example with lmax java api ; maven2 required)
+$ mvn install:install-file -Dfile=java-api.jar -DartifactId=java-api -Dversion=1.8.1.0 -DgroupId=java-api -Dpackaging=jar -DlocalRepositoryPath=maven_repo
+$ lein deps
+
+## License
+
+Copyright (C) 2012 FIXME
+
+Distributed under the Eclipse Public License, the same as Clojure.
