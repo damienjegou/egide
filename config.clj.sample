@@ -1,0 +1,7 @@
+{
+  ;; LMAX credentials
+  :login ""
+  :password ""
+  :demo true      ;; true | false (virtual or real money)
+}
+
