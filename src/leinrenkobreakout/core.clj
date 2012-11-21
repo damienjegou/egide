@@ -1,4 +1,5 @@
 (ns leinrenkobreakout.core
+  (:require [taoensso.carmine :as car])
   (:import (java.util Date)
            (java.text SimpleDateFormat)
            (com.lmax.api Callback
@@ -18,6 +19,12 @@
 ;(def instrumentId 100437) ; 24/7 test instrument
 (def instrumentId 4001) ; EURUSD
 (def session nil)
+
+;; redis
+(def pool         (car/make-conn-pool))
+(def spec-server1 (car/make-conn-spec))
+
+(defmacro wcar [& body] `(car/with-conn pool spec-server1 ~@body))
 
 
 ;; utility functions
@@ -43,6 +50,10 @@
   (proxy [OrderBookEventListener] []
     (notify [orderbookevent]
       (log "%s %s" (.getTimeStamp orderbookevent) (.longValue (.getValuationBidPrice orderbookevent)))
+      (wcar (car/publish "OrderBookEvent" {:timestamp (.getTimeStamp orderbookevent)
+                                           :instrumentid (.getInstrumentId orderbookevent)
+                                           :bid (.longValue (.getPrice (.get (.getBidPrices orderbookevent) 0)))
+                                           :ask (.longValue (.getPrice (.get (.getAskPrices orderbookevent) 0)))}))
       )))
 
 (defn ordereventCallback []
@@ -64,8 +75,6 @@
       (log "Logged in, account details : %s" (.getAccountDetails session))
       (.registerOrderBookEventListener session (orderbookeventCallback))
       (.subscribe session (OrderBookSubscriptionRequest. instrumentId) (defaultSubscriptionCallback))
-      ;(.registerPositionEventListener session (positioneventCallback))
-      ;(.subscribe session (PositionSubscriptionRequest.) (defaultSubscriptionCallback))
       (.registerOrderEventListener session (ordereventCallback))
       (.registerExecutionEventListener session (executioneventCallback))
       (.subscribe session (ExecutionSubscriptionRequest.) (defaultSubscriptionCallback))
@@ -87,5 +96,6 @@
 
 (defn -main [& args]
   (let [conf (read-string (slurp "config.clj"))]
+    ;(log (str (wcar (car/ping))))
     (log (str (boolean (:demo conf))))
     (login (:login conf) (:password conf) (:demo conf))))

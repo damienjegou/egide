@@ -1,4 +1,7 @@
 TODO
 * IPC : internal http service using json ? ; redis ? ; zeromq ?...
+  Try basic IPC via python tornadoweb (maybe racket httpd too ?)
+  Try ProtocolBuffers : http://oobaloo.co.uk/protocol-buffers-with-clojure-and-leiningen
+                        https://developers.google.com/protocol-buffers/docs/overview?hl=fr
 * backtesting
 
