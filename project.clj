@@ -1,4 +1,4 @@
-(defproject leinrenkobreakout "1.0.0-SNAPSHOT"
+(defproject egide "1.0.0-SNAPSHOT"
   :description "FIXME: write description"
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [com.taoensso/carmine "1.0.0"]
@@ -9,4 +9,4 @@
                  ;; [clj-zmq "0.1.2-SNAPSHOT"]
                  ]
   :repositories {"local" ~(str (.toURI (java.io.File. "maven_repo")))}
-  :main leinrenkobreakout.core)
+  :main egide.core)

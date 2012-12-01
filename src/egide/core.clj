@@ -1,4 +1,4 @@
-(ns leinrenkobreakout.core
+(ns egide.core
   (:require [taoensso.carmine :as car])
   (:import (java.util Date)
            (java.text SimpleDateFormat)
@@ -49,24 +49,20 @@
 (defn orderbookeventCallback []
   (proxy [OrderBookEventListener] []
     (notify [orderbookevent]
-      (log "%s %s" (.getTimeStamp orderbookevent) (.longValue (.getValuationBidPrice orderbookevent)))
-      (wcar (car/publish "OrderBookEvent" {:timestamp (.getTimeStamp orderbookevent)
-                                           :instrumentid (.getInstrumentId orderbookevent)
-                                           :bid (.longValue (.getPrice (.get (.getBidPrices orderbookevent) 0)))
-                                           :ask (.longValue (.getPrice (.get (.getAskPrices orderbookevent) 0)))}))
-      )))
+      (log "OrderBookEvent : timestamp %s bid %s" (.getTimeStamp orderbookevent) (.longValue (.getValuationBidPrice orderbookevent)))
+      (wcar (car/publish "OrderBookEvent" (str (apply list (-> orderbookevent bean seq flatten))))))))
 
 (defn ordereventCallback []
   (proxy [OrderEventListener] []
     (notify [order]
       (log "OrderEvent : %s" (str order))
-      )))
+      (wcar (car/publish "OrderEventListener" (str (apply list (-> order bean seq flatten))))))))
 
 (defn executioneventCallback []
   (proxy [ExecutionEventListener] []
     (notify [execution]
       (log "ExecutionEvent : %s" (str execution))
-      )))
+      (wcar (car/publish "ExecutionEventListener" (str (apply list (-> execution bean seq flatten))))))))
 
 (defn loginCallbacks []
   (proxy [LoginCallback] []
@@ -96,6 +92,4 @@
 
 (defn -main [& args]
   (let [conf (read-string (slurp "config.clj"))]
-    ;(log (str (wcar (car/ping))))
-    (log (str (boolean (:demo conf))))
     (login (:login conf) (:password conf) (:demo conf))))

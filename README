@@ -1,15 +1,13 @@
-# leinrenkobreakout
+# Egide
 
-Autonomous trading bot using renko bricks and channel breakouts strategy
+Egide is an autonomous trading bot component
+Egide connects to lmax, collects data, and publish it through redis pubsub
+messaging system.
 
-## Usage
+# Add LMAX java lib to project (maven2 required)
 
-Add jar file to local repo (example with lmax java api ; maven2 required)
+$ mkdir maven_repo
+Add java-api.jar to local repo :
 $ mvn install:install-file -Dfile=java-api.jar -DartifactId=java-api -Dversion=1.8.1.0 -DgroupId=java-api -Dpackaging=jar -DlocalRepositoryPath=maven_repo
 $ lein deps
 
-## License
-
-Copyright (C) 2012 FIXME
-
-Distributed under the Eclipse Public License, the same as Clojure.
