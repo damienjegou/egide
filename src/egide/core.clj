@@ -1,13 +1,16 @@
-(ns egide.core
+(ns leinrenkobreakout.core
   (:require [taoensso.carmine :as car])
   (:import (java.util Date)
            (java.text SimpleDateFormat)
            (com.lmax.api Callback
+                         FixedPointNumber
                          LmaxApi)
            (com.lmax.api.account LoginCallback
                                  LoginRequest)
            (com.lmax.api.order ExecutionEventListener
                                ExecutionSubscriptionRequest
+                               LimitOrderSpecification
+                               OrderCallback
                                OrderEventListener)
            (com.lmax.api.orderbook OrderBookEventListener
                                    OrderBookSubscriptionRequest))
@@ -36,6 +39,29 @@
              (apply format args)
              "\n")
         :append true))
+
+
+(defn placedorderCallback []
+  (proxy [OrderCallback] []
+    (onSuccess [instructionId]
+      (log "ordre passé : %s%n" (str instructionId)))
+    (onFailure [failureResponse]
+      (log "echec passage d'ordre : %s%n" failureResponse))))
+
+(defn placeorder [rawmsg]
+  (log "PlaceOrder %s" rawmsg)
+  (let [msg (read-string rawmsg)
+        limit (:limit msg)
+        quantity (:quantity msg)
+        stoploss (:stoploss msg)
+        stopprofit (:stopprofit msg)
+        orderspec (fn [l q stop profit]
+                    (LimitOrderSpecification. instrumentId (FixedPointNumber/valueOf (long l)) q
+                                              com.lmax.api.TimeInForce/IMMEDIATE_OR_CANCEL
+                                              (FixedPointNumber/valueOf (long stop))
+                                              (if profit (FixedPointNumber/valueOf (long profit)) nil)))]
+    (.placeLimitOrder session (orderspec limit quantity stoploss stopprofit) (placedorderCallback))))
+
 
 ;; callbacks
 
@@ -69,12 +95,15 @@
     (onLoginSuccess [session]
       (def session session)
       (log "Logged in, account details : %s" (.getAccountDetails session))
+      ;; LMAX subscriptions
       (.registerOrderBookEventListener session (orderbookeventCallback))
       (.subscribe session (OrderBookSubscriptionRequest. instrumentId) (defaultSubscriptionCallback))
       (.registerOrderEventListener session (ordereventCallback))
       (.registerExecutionEventListener session (executioneventCallback))
       (.subscribe session (ExecutionSubscriptionRequest.) (defaultSubscriptionCallback))
       (.start session))
+      ;; Redis listeners
+      ;(listen-orders))
     (onLoginFailure [failureResponse]
       (log "Failed to login. Reason : %s" failureResponse))))
 
@@ -85,7 +114,10 @@
               "https://trade.lmaxtrader.com")
         prodtype (if demo
                    com.lmax.api.account.LoginRequest$ProductType/CFD_DEMO
-                   com.lmax.api.account.LoginRequest$ProductType/CFD_LIVE)]
+                   com.lmax.api.account.LoginRequest$ProductType/CFD_LIVE)
+        listen-orders (car/with-new-pubsub-listener
+                        spec-server1 {"PlaceOrder" placeorder}
+                        (car/subscribe "PlaceOrder"))]
     (.login (LmaxApi. url)
             (LoginRequest. name password prodtype)
             (loginCallbacks))))
