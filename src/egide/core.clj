@@ -1,6 +1,8 @@
-(ns leinrenkobreakout.core
+(ns egide.core
   (:require [taoensso.carmine :as car])
-  (:import (java.util Date)
+  (:import (java.util Date
+                      Collections)
+;           (java.util.Collections UnmodifiableRandomAccessList)
            (java.text SimpleDateFormat)
            (com.lmax.api Callback
                          FixedPointNumber
@@ -40,6 +42,16 @@
              "\n")
         :append true))
 
+(defn lispify [x]
+  (cond (= (type x) FixedPointNumber) (.longValue x)
+        (= (type x) java.util.Collections$UnmodifiableRandomAccessList) (map #(list (.longValue (.getPrice %)) (.longValue (.getQuantity %))) (apply list x))
+        :else x))
+
+(defn objtosexpr [object]
+  ;;(str (apply list (map lispify (apply list (dissoc (-> object bean seq flatten) :class)))))
+  (str (apply list (map lispify (apply list (-> (dissoc (bean object) :class) seq flatten))))))
+
+
 
 (defn placedorderCallback []
   (proxy [OrderCallback] []
@@ -67,7 +79,8 @@
 
 (defn defaultSubscriptionCallback []
   (proxy [Callback] []
-    (onSuccess [])
+    (onSuccess []
+      (log "Default success callback"))
     (onFailure [failureResponse]
       (log "Default failure callback %s" failureResponse))))
 
@@ -75,20 +88,21 @@
 (defn orderbookeventCallback []
   (proxy [OrderBookEventListener] []
     (notify [orderbookevent]
-      (log "OrderBookEvent : timestamp %s bid %s" (.getTimeStamp orderbookevent) (.longValue (.getValuationBidPrice orderbookevent)))
-      (wcar (car/publish "OrderBookEvent" (str (apply list (-> orderbookevent bean seq flatten))))))))
+      (let [s (objtosexpr orderbookevent)]
+        (log "OrderBookEvent : timestamp %s bid %s sexpr %s" (.getTimeStamp orderbookevent) (.longValue (.getValuationBidPrice orderbookevent)) s)
+        (wcar (car/publish "OrderBookEvent" (objtosexpr orderbookevent)))))))
 
 (defn ordereventCallback []
   (proxy [OrderEventListener] []
     (notify [order]
       (log "OrderEvent : %s" (str order))
-      (wcar (car/publish "OrderEventListener" (str (apply list (-> order bean seq flatten))))))))
+      (wcar (car/publish "OrderEvent" (objtosexpr order))))))
 
 (defn executioneventCallback []
   (proxy [ExecutionEventListener] []
     (notify [execution]
       (log "ExecutionEvent : %s" (str execution))
-      (wcar (car/publish "ExecutionEventListener" (str (apply list (-> execution bean seq flatten))))))))
+      (wcar (car/publish "ExecutionEvent" (objtosexpr execution))))))
 
 (defn loginCallbacks []
   (proxy [LoginCallback] []
@@ -103,12 +117,10 @@
       (.subscribe session (ExecutionSubscriptionRequest.) (defaultSubscriptionCallback))
       (.start session))
       ;; Redis listeners
-      ;(listen-orders))
     (onLoginFailure [failureResponse]
       (log "Failed to login. Reason : %s" failureResponse))))
 
 (defn login [name password demo]
-  (log "login...")
   (let [url (if demo
               "https://testapi.lmaxtrader.com"
               "https://trade.lmaxtrader.com")
@@ -118,6 +130,7 @@
         listen-orders (car/with-new-pubsub-listener
                         spec-server1 {"PlaceOrder" placeorder}
                         (car/subscribe "PlaceOrder"))]
+    (log "logging in %s..." url)
     (.login (LmaxApi. url)
             (LoginRequest. name password prodtype)
             (loginCallbacks))))
