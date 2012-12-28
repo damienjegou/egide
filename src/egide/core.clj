@@ -2,13 +2,14 @@
   (:require [taoensso.carmine :as car])
   (:import (java.util Date
                       Collections)
-;           (java.util.Collections UnmodifiableRandomAccessList)
            (java.text SimpleDateFormat)
            (com.lmax.api Callback
                          FixedPointNumber
                          LmaxApi)
            (com.lmax.api.account LoginCallback
                                  LoginRequest)
+	   (com.lmax.api.heartbeat HeartbeatCallback
+				   HeartbeatRequest)
            (com.lmax.api.order ExecutionEventListener
                                ExecutionSubscriptionRequest
                                LimitOrderSpecification
@@ -24,6 +25,7 @@
 ;(def instrumentId 100437) ; 24/7 test instrument
 (def instrumentId 4001) ; EURUSD
 (def session nil)
+(def heartbeat-frequency 720000)
 
 ;; redis
 (def pool         (car/make-conn-pool))
@@ -43,22 +45,34 @@
         :append true))
 
 (defn lispify [x]
-  (cond (= (type x) FixedPointNumber) (.longValue x)
-        (= (type x) java.util.Collections$UnmodifiableRandomAccessList) (map #(list (.longValue (.getPrice %)) (.longValue (.getQuantity %))) (apply list x))
+  (cond (= (type x) FixedPointNumber)
+        (.longValue x)
+        (= (type x) java.util.Collections$UnmodifiableRandomAccessList)
+        (map #(list (.longValue (.getPrice %)) (.longValue (.getQuantity %))) (apply list x))
         :else x))
 
 (defn objtosexpr [object]
-  ;;(str (apply list (map lispify (apply list (dissoc (-> object bean seq flatten) :class)))))
   (str (apply list (map lispify (apply list (-> (dissoc (bean object) :class) seq flatten))))))
 
+(defn heartbeatCallback []
+  (proxy [HeartbeatCallback] []
+    (onSuccess [token]
+	       (log "sent heartbeat token : %s" token))
+    (onFailure [failureResponse]
+	       (log "send heartbeat failed : %s" failureResponse))))
+
+(defn heartbeat-loop []
+  (while (not (.isInterrupted (Thread/currentThread)))
+    (Thread/sleep heartbeat-frequency)
+    (.requestHeartbeat session (HeartbeatRequest. (str (System/currentTimeMillis))) (heartbeatCallback))))
 
 
 (defn placedorderCallback []
   (proxy [OrderCallback] []
     (onSuccess [instructionId]
-      (log "ordre passé : %s%n" (str instructionId)))
+      (log "ordre passé : %s" (str instructionId)))
     (onFailure [failureResponse]
-      (log "echec passage d'ordre : %s%n" failureResponse))))
+      (log "echec passage d'ordre : %s" failureResponse))))
 
 (defn placeorder [rawmsg]
   (log "PlaceOrder %s" rawmsg)
@@ -115,6 +129,7 @@
       (.registerOrderEventListener session (ordereventCallback))
       (.registerExecutionEventListener session (executioneventCallback))
       (.subscribe session (ExecutionSubscriptionRequest.) (defaultSubscriptionCallback))
+      (.start (Thread. heartbeat-loop)) ; start heartbeat thread
       (.start session))
       ;; Redis listeners
     (onLoginFailure [failureResponse]
@@ -137,4 +152,5 @@
 
 (defn -main [& args]
   (let [conf (read-string (slurp "config.clj"))]
-    (login (:login conf) (:password conf) (:demo conf))))
+    (while true (do (login (:login conf) (:password conf) (:demo conf))
+                    (log "Disconnected, try to login again...")))))
