@@ -75,18 +75,23 @@
       (log "echec passage d'ordre : %s" failureResponse))))
 
 (defn placeorder [rawmsg]
-  (log "PlaceOrder %s" rawmsg)
-  (let [msg (read-string rawmsg)
-        limit (:limit msg)
-        quantity (:quantity msg)
-        stoploss (:stoploss msg)
-        stopprofit (:stopprofit msg)
-        orderspec (fn [l q stop profit]
-                    (LimitOrderSpecification. instrumentId (FixedPointNumber/valueOf (long l)) q
-                                              com.lmax.api.TimeInForce/IMMEDIATE_OR_CANCEL
-                                              (FixedPointNumber/valueOf (long stop))
-                                              (if profit (FixedPointNumber/valueOf (long profit)) nil)))]
-    (.placeLimitOrder session (orderspec limit quantity stoploss stopprofit) (placedorderCallback))))
+  (try
+    (log "PlaceOrder %s" (last rawmsg))
+    (let [msg (apply hash-map (read-string (last rawmsg)))
+          limit (:limit msg)
+          quantity (:quantity msg)
+          stoploss (:stoploss msg)
+          stopprofit (:stopprofit msg)
+          orderspec (fn [l q stop profit]
+                      (LimitOrderSpecification. instrumentId
+                                                (FixedPointNumber/valueOf (long l))
+                                                (FixedPointNumber/valueOf (long (* q 1000000))) ; 1000000L = FixedPointNumber/ONE
+                                                com.lmax.api.TimeInForce/IMMEDIATE_OR_CANCEL
+                                                (FixedPointNumber/valueOf (long stop))
+                                                (if profit (FixedPointNumber/valueOf (long profit)) nil)))]
+      (.placeLimitOrder session (orderspec limit quantity stoploss stopprofit) (placedorderCallback)))
+    (catch Exception e
+      (log "exception %s" e))))
 
 
 ;; callbacks
@@ -131,7 +136,6 @@
       (.subscribe session (ExecutionSubscriptionRequest.) (defaultSubscriptionCallback))
       (.start (Thread. heartbeat-loop)) ; start heartbeat thread
       (.start session))
-      ;; Redis listeners
     (onLoginFailure [failureResponse]
       (log "Failed to login. Reason : %s" failureResponse))))
 
