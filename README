@@ -4,6 +4,7 @@ Egide is an autonomous trading bot component
 Egide connects to lmax, collects data, and publish it through redis pubsub
 messaging system.
 
+
 # Add LMAX java lib to project (maven2 required)
 
 $ mkdir maven_repo

@@ -77,19 +77,20 @@
 (defn placeorder [rawmsg]
   (try
     (log "PlaceOrder %s" (last rawmsg))
-    (let [msg (apply hash-map (read-string (last rawmsg)))
-          limit (:limit msg)
-          quantity (:quantity msg)
-          stoploss (:stoploss msg)
-          stopprofit (:stopprofit msg)
-          orderspec (fn [l q stop profit]
-                      (LimitOrderSpecification. instrumentId
-                                                (FixedPointNumber/valueOf (long l))
-                                                (FixedPointNumber/valueOf (long (* q 1000000))) ; 1000000L = FixedPointNumber/ONE
-                                                com.lmax.api.TimeInForce/IMMEDIATE_OR_CANCEL
-                                                (FixedPointNumber/valueOf (long stop))
-                                                (if profit (FixedPointNumber/valueOf (long profit)) nil)))]
-      (.placeLimitOrder session (orderspec limit quantity stoploss stopprofit) (placedorderCallback)))
+    (if (= (first rawmsg) "message")
+      (let [msg (apply hash-map (read-string (last rawmsg)))
+            limit (:limit msg)
+            quantity (:quantity msg)
+            stoploss (:stoploss msg)
+            stopprofit (:stopprofit msg)
+            orderspec (fn [l q stop profit]
+                        (LimitOrderSpecification. instrumentId
+                                                  (FixedPointNumber/valueOf (long l))
+                                                  (FixedPointNumber/valueOf (long (* q 1000000))) ; 1000000L = FixedPointNumber/ONE
+                                                  com.lmax.api.TimeInForce/IMMEDIATE_OR_CANCEL
+                                                  (FixedPointNumber/valueOf (long stop))
+                                                  (if profit (FixedPointNumber/valueOf (long profit)) nil)))]
+        (.placeLimitOrder session (orderspec limit quantity stoploss stopprofit) (placedorderCallback))))
     (catch Exception e
       (log "exception %s" e))))
 
@@ -154,7 +155,15 @@
             (LoginRequest. name password prodtype)
             (loginCallbacks))))
 
+;(defn forever []
 (defn -main [& args]
   (let [conf (read-string (slurp "config.clj"))]
     (while true (do (login (:login conf) (:password conf) (:demo conf))
                     (log "Disconnected, try to login again...")))))
+
+
+;(defn -main [& args]
+;  (doto
+;      (Thread. forever)
+;    (.setDaemon true)
+;    (.start)))
